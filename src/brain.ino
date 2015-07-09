@@ -15,6 +15,9 @@
 #define UP_DIRECTION    0x55
 #define U_TURN          0x54
 
+#define LEFT_MOTOR_SPEED 105
+#define RIGHT_MOTOR_SPEED 100
+
 #include <EEPROM.h>
 
 unsigned char SHORTESTPATH[512];
@@ -105,7 +108,7 @@ void performUturn(void)
 {
  while(analogRead(MIDDLE_SENSOR) < THRESHOLD)
   {
-    analogWrite(LEFT_MOTOR_FORWARD, 105);
+    analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
     analogWrite(RIGHT_MOTOR_FORWARD, 0);
     analogWrite(RIGHT_MOTOR_BACKWARD, 100);
@@ -121,10 +124,10 @@ void turnRight(void)
   delay(100); // Just for positioning with sensors in front
   while(analogRead(MIDDLE_SENSOR) < THRESHOLD)
   {
-    analogWrite(LEFT_MOTOR_FORWARD, 105);
+    analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
     analogWrite(RIGHT_MOTOR_FORWARD, 0);
-    analogWrite(RIGHT_MOTOR_BACKWARD, 100);
+    analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
   }
   
   Serial.println("TURNING RIGHT");
@@ -149,8 +152,8 @@ void turnLeft(void)
   while(analogRead(MIDDLE_SENSOR) < THRESHOLD)
   {
       analogWrite(LEFT_MOTOR_FORWARD, 0);
-      analogWrite(LEFT_MOTOR_BACKWARD, 105);
-      analogWrite(RIGHT_MOTOR_FORWARD, 100);
+      analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
+      analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
       analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   }
     Serial.println("TURNING LEFT");
@@ -176,9 +179,9 @@ void loop()
   else if ((sensLeft < THRESHOLD) && (sensMid > THRESHOLD))
   {
     // This is just go straight
-    analogWrite(LEFT_MOTOR_FORWARD, 105);
+    analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
-    analogWrite(RIGHT_MOTOR_FORWARD, 100);
+    analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
     analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   }
   else if (sensLeft > THRESHOLD)
@@ -190,9 +193,9 @@ void loop()
     //performUturn();
   }
   
-  analogWrite(LEFT_MOTOR_FORWARD, 105);
+  analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
-  analogWrite(RIGHT_MOTOR_FORWARD, 100);
+  analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
   analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   
   //debugShortestPath();
