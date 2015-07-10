@@ -3,9 +3,9 @@
 #define RIGHT_MOTOR_BACKWARD 6
 #define RIGHT_MOTOR_FORWARD 10
 
-#define RIGHT_SENSOR  0
-#define MIDDLE_SENSOR 1
-#define LEFT_SENSOR   2
+#define RIGHT_SENSOR   0
+#define MIDDLE_SENSOR  1
+#define LEFT_SENSOR    2
 #define READY_TO_DRIVE 12
 
 #define THRESHOLD 900
@@ -15,7 +15,7 @@
 #define UP_DIRECTION    0x55
 #define U_TURN          0x54
 
-#define LEFT_MOTOR_SPEED 105
+#define LEFT_MOTOR_SPEED  105
 #define RIGHT_MOTOR_SPEED 100
 
 #include <EEPROM.h>
@@ -25,12 +25,12 @@ uint16_t PATH_ELEMENT = 0;
 
 bool isEEPROMempty(void)
 {
-  byte eepromValue;
+  unsigned char eepromValue;
   
   for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
   {
     eepromValue = EEPROM.read(eepromAddress);
-    if (eepromValue != 0)
+    if (((eepromValue & LEFT_DIRECTION) != 0x00) || ((eepromValue & RIGHT_DIRECTION) != 0x00) || ((eepromValue & UP_DIRECTION) != 0x00) || ((eepromValue & U_TURN) != 0x00))
     {
       return false; // This means EEPROM is not empty
     }    
@@ -40,7 +40,7 @@ bool isEEPROMempty(void)
 
 void readEEPROM(void)
 {
-  for (uint16_t eepromAddress; eepromAddress < 512; eepromAddress++)
+  for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
   {
      SHORTESTPATH[eepromAddress] = EEPROM.read(eepromAddress);
   } 
@@ -48,15 +48,15 @@ void readEEPROM(void)
 
 void clearEEPROM(void)
 {
-  for (uint16_t eepromAddress; eepromAddress < 512; eepromAddress++)
+  for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
   {
-     EEPROM.write(eepromAddress, 0);
+     EEPROM.write(eepromAddress, '\0');
   }
 }
 
 void writeShortestPath(void)
 {
-  for (uint16_t eepromAddress; eepromAddress < 512; eepromAddress++)
+  for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
   {
      EEPROM.write(eepromAddress, SHORTESTPATH[eepromAddress]);
   }
@@ -111,7 +111,7 @@ void performUturn(void)
     analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
     analogWrite(RIGHT_MOTOR_FORWARD, 0);
-    analogWrite(RIGHT_MOTOR_BACKWARD, 100);
+    analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
   }
   
   Serial.println("TURNING AROUND");
