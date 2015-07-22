@@ -10,22 +10,23 @@
 #define DELETE_EEPROM  12
 #define READY_TO_DRIVE 7
 
-#define THRESHOLD_LEFT 700
+#define THRESHOLD_LEFT   700
 #define THRESHOLD_MIDDLE 500
-#define THRESHOLD_RIGHT 700
+#define THRESHOLD_RIGHT  700
 
 #define LEFT_DIRECTION  0x4c
 #define RIGHT_DIRECTION 0x52
 #define UP_DIRECTION    0x55
 #define U_TURN          0x54
 
-#define LEFT_MOTOR_SPEED  145//105
-#define RIGHT_MOTOR_SPEED 140//  100
+#define LEFT_MOTOR_SPEED  145
+#define RIGHT_MOTOR_SPEED 140
 
-#define LEFT_MOTOR_TURN_SPEED  255//205
-#define RIGHT_MOTOR_TURN_SPEED 250//200
+#define LEFT_MOTOR_TURN_SPEED  255
+#define RIGHT_MOTOR_TURN_SPEED 250
 
-#define MAX_TIME_FOR_U_TURN 600
+#define MAX_TIME_FOR_U_TURN          600
+#define CHECKING_TIME_FOR_FINISHLINE 400
 
 #include <EEPROM.h>
 #include <elapsedMillis.h>
@@ -34,6 +35,12 @@ unsigned char SHORTESTPATH[512];
 uint16_t PATH_ELEMENT = 0;
 bool checkedFinish = false;
 
+/*
+* This procedure checks if the EEPROM is empty or not
+* return:
+*       true if empty
+*       false if not empty
+*/
 bool isEEPROMempty(void)
 {
   unsigned char eepromValue;
@@ -43,9 +50,8 @@ bool isEEPROMempty(void)
     eepromValue = EEPROM.read(eepromAddress);
     if (((eepromValue & LEFT_DIRECTION) != 0x00) || ((eepromValue & RIGHT_DIRECTION) != 0x00) || ((eepromValue & UP_DIRECTION) != 0x00) || ((eepromValue & U_TURN) != 0x00))
     {
-      return true; // This means EEPROM is empty
-
       Serial.println("EEPROM is empty");
+      return true; // This means EEPROM is empty
     }
   }
 
@@ -54,6 +60,9 @@ bool isEEPROMempty(void)
 
 }
 
+/*
+* This procedure reads from the EEPROM and saves it to the SHORTESTPATH
+*/
 void readEEPROM(void)
 {
   for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
@@ -64,6 +73,9 @@ void readEEPROM(void)
   Serial.println("EEPROM Read from");
 }
 
+/*
+* This procedure writes the to the EEPROM all zero
+*/
 void clearEEPROM(void)
 {
   for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
@@ -74,6 +86,9 @@ void clearEEPROM(void)
   Serial.println("EEPROM Cleared");
 }
 
+/*
+* This procedure writes the saved shortest path to EEPROM to be used later
+*/
 void writeShortestPath(void)
 {
   for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
@@ -84,12 +99,9 @@ void writeShortestPath(void)
   Serial.println("Shortest path written to EEPROM!");
 }
 
-
-void setup() {
-  Serial.begin(9600);
-  delay(3000);
-  pinMode(READY_TO_DRIVE, INPUT);
-
+void idle(void)
+{
+  // Waiting for ready to drive button to be pushed
   while (!digitalRead(READY_TO_DRIVE))
   {
     /**
@@ -99,10 +111,11 @@ void setup() {
     }
     **/
   }
-  Serial.print("R2D BRUH");
+  Serial.print("Ready To Drive Enabled");
   delay(1000);
 
   // Now we wait for the next push to enable movement
+  // This is important for manual calibration
   while (!digitalRead(READY_TO_DRIVE))
   {
     int sensMid = analogRead(MIDDLE_SENSOR);
@@ -118,23 +131,35 @@ void setup() {
   }
   Serial.println("Driving");
   delay(1000);
+
   /**
+  // If the EEPROM is not empty, will use best path
   if (isEEPROMempty)
   {
     // Read EEPROM and use it whenever there is a junction
   }
   **/
-
-
 }
 
+void setup() {
+  Serial.begin(9600);
+  delay(3000);
+  pinMode(READY_TO_DRIVE, INPUT);
+
+  idle();
+}
+
+/*
+* This procedure propels the A.M.P.S machine in the backwards direction, then turns the 
+* machine around once back on track
+*/
 void performUturn(void)
 {
   analogWrite(LEFT_MOTOR_FORWARD, 0);
   analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
   analogWrite(RIGHT_MOTOR_FORWARD, 0);
   analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
-  Serial.println("Turning around");
+  Serial.println("Reversing");
 
   while (true)
   {
@@ -144,15 +169,18 @@ void performUturn(void)
 
     if (sensMid > THRESHOLD_MIDDLE)
     {
-      Serial.println("TIME TO TURN AROUND");
-      turnRightBackwards();
+      turnAround();
       return;
     }
   }
 }
 
-void turnRightBackwards(void)
+/*
+* This procedure turns the A.M.P.S machine around
+*/
+void turnAround(void)
 {
+  Serial.println("TURNING AROUND");
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
   analogWrite(RIGHT_MOTOR_FORWARD, 0);
@@ -167,15 +195,16 @@ void turnRightBackwards(void)
     analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
   }
 
-  Serial.println("TURNING RIGHT");
-  checkedFinish = true;
   //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
   //PATH_ELEMENT++;
 }
 
+/*
+* This procedure turns the A.M.P.S machine in the right direction
+*/
 void turnRight(void)
 {
-  //delay(100);
+  Serial.println("TURNING RIGHT");
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
   analogWrite(RIGHT_MOTOR_FORWARD, 0);
@@ -190,47 +219,16 @@ void turnRight(void)
     analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
   }
 
-  Serial.println("TURNING RIGHT");
-  checkedFinish = true;
   //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
   //PATH_ELEMENT++;
 }
 
-void stopForTesting(void)
-{
-  analogWrite(LEFT_MOTOR_FORWARD, 0);
-  analogWrite(LEFT_MOTOR_BACKWARD, 0);
-  analogWrite(RIGHT_MOTOR_FORWARD, 0);
-  analogWrite(RIGHT_MOTOR_BACKWARD, 0);
-  writeShortestPath();
-  while (1)
-  {
-    delay(10000);
-    readEEPROM();
-  }
-}
-
-void turnLeftBackwards(void)
-{
-  analogWrite(LEFT_MOTOR_FORWARD, 0);
-  analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
-  analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
-  analogWrite(RIGHT_MOTOR_BACKWARD, 0);
-
-  while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
-  {
-    analogWrite(LEFT_MOTOR_FORWARD, 0);
-    analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
-    analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
-    analogWrite(RIGHT_MOTOR_BACKWARD, 0);
-  }
-  Serial.println("TURNING LEFT");
-  checkedFinish = true;
-}
-
+/*
+* This procedure turns the A.M.P.S machine in the left direction
+*/
 void turnLeft(void)
 {
-  //delay(100);
+  Serial.println("TURNING LEFT");
   analogWrite(LEFT_MOTOR_FORWARD, 0);
   analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
@@ -245,10 +243,11 @@ void turnLeft(void)
     analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
     analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   }
-  Serial.println("TURNING LEFT");
-  checkedFinish = true;
 }
 
+/*
+* This procedure stops the A.M.P.S machine and waits to redo its driving
+*/
 void finished(void)
 {
   while (1)
@@ -257,120 +256,126 @@ void finished(void)
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
     analogWrite(RIGHT_MOTOR_FORWARD, 0);
     analogWrite(RIGHT_MOTOR_BACKWARD, 0);
+
+    if (digitalRead(READY_TO_DRIVE))
+    {
+      idle();
+    }
   }
 }
 
-bool finishLine(void)
+/*
+* This procedure checks if the finish line is present, stops if it does, otherwise continues its search
+*/
+void checkFinish(void)
+{
+  uint16_t sensMid;
+  uint16_t sensRight;
+  uint16_t sensLeft;
+
+  elapsedMillis timeElapsed;
+  while (timeElapsed < CHECKING_TIME_FOR_FINISHLINE)
+  {
+  }
+
+  sensMid = analogRead(MIDDLE_SENSOR);
+  sensRight = analogRead(RIGHT_SENSOR);
+  sensLeft = analogRead(LEFT_SENSOR);
+  if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE) && (sensRight > THRESHOLD_RIGHT))
+  {
+    finished();
+  }
+}
+
+/*
+* This procedure propels the A.M.P.S. machine forward
+*/
+void moveForward(void)
 {
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
   analogWrite(RIGHT_MOTOR_BACKWARD, 0);
-  delay(150);
-
-  int sensMid = analogRead(MIDDLE_SENSOR);
-  int sensRight = analogRead(RIGHT_SENSOR);
-  int sensLeft = analogRead(LEFT_SENSOR);
-
-  if ((sensRight > THRESHOLD_RIGHT) && (sensMid > THRESHOLD_MIDDLE) && (sensLeft > THRESHOLD_LEFT))
-  {
-    Serial.println("FINISH");
-    return true;
-  }
-  else
-  {
-    return false;
-  }
 }
 
-void moveBack(void)
+/*
+* Polls direction after a certain period of time, checking if any sensors go high, correction if its true
+* If no sensors are high it then performs a U-Turn
+*/
+void checkUturn(void)
 {
-  analogWrite(LEFT_MOTOR_FORWARD, 0);
-  analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
-  analogWrite(RIGHT_MOTOR_FORWARD, 0);
-  analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
-  delay(100);
+  uint16_t sensMid;
+  uint16_t sensRight;
+  uint16_t sensLeft;
+  bool correctedPosition = false;
+  Serial.println("Might turn around");
 
+  elapsedMillis timeElapsed;
+  while (timeElapsed < MAX_TIME_FOR_U_TURN)
+  {
+    sensMid = analogRead(MIDDLE_SENSOR);
+    sensRight = analogRead(RIGHT_SENSOR);
+    sensLeft = analogRead(LEFT_SENSOR);
+
+    if (sensRight > THRESHOLD_RIGHT)
+    {
+      Serial.println("Correcting position, turning right");
+      turnRight();
+      correctedPosition = true;
+    }
+    else if (sensLeft > THRESHOLD_LEFT)
+    {
+      Serial.println("Correcting position, turning Left");
+      turnLeft();
+      correctedPosition = true;
+    }
+    if (correctedPosition)
+    {
+      break;
+    }
+  }
+
+  if (!correctedPosition)
+  {
+    sensMid = analogRead(MIDDLE_SENSOR);
+    sensRight = analogRead(RIGHT_SENSOR);
+    sensLeft = analogRead(LEFT_SENSOR);
+
+    if ((sensLeft < THRESHOLD_LEFT) && (sensMid < THRESHOLD_MIDDLE) && (sensRight < THRESHOLD_RIGHT))
+    {
+      performUturn();
+    }
+  }
 }
 
 void loop()
 {
-  int sensMid = analogRead(MIDDLE_SENSOR);
-  int sensRight = analogRead(RIGHT_SENSOR);
-  int sensLeft = analogRead(LEFT_SENSOR);
+  uint16_t sensMid = analogRead(MIDDLE_SENSOR);
+  uint16_t sensRight = analogRead(RIGHT_SENSOR);
+  uint16_t sensLeft = analogRead(LEFT_SENSOR);
 
-  if (sensRight > THRESHOLD_RIGHT)
+  if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE) && (sensRight > THRESHOLD_RIGHT))
   {
-    Serial.println("Gunna turn right");
+    checkFinish();
+  }
+  else if (sensRight > THRESHOLD_RIGHT)
+  {
     turnRight();
   }
   else if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE))
   {
-    // This is just go straight
-    analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
-    analogWrite(LEFT_MOTOR_BACKWARD, 0);
-    analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
-    analogWrite(RIGHT_MOTOR_BACKWARD, 0);
-    //checkedFinish = true;
+    moveForward();
   }
   else if (sensLeft > THRESHOLD_LEFT)
   {
-    Serial.println("Turning Left");
     turnLeft();
   }
   else if ((sensLeft < THRESHOLD_LEFT) && (sensMid < THRESHOLD_MIDDLE) && (sensRight < THRESHOLD_RIGHT))
   {
-    bool turnt = false;
-    Serial.println("Might  U turn around");
-
-    elapsedMillis timeElapsed;
-    while (timeElapsed < MAX_TIME_FOR_U_TURN)
-    {
-      sensMid = analogRead(MIDDLE_SENSOR);
-      sensRight = analogRead(RIGHT_SENSOR);
-      sensLeft = analogRead(LEFT_SENSOR);
-
-      if (sensRight > THRESHOLD_RIGHT)
-      {
-        Serial.println("U turn right");
-        turnRight();
-        turnt = true;
-      }
-      else if (sensLeft > THRESHOLD_LEFT)
-      {
-        Serial.println("U Turning Left");
-        turnLeft();
-        turnt = true;
-      }
-      if (turnt)
-      {
-        break;
-      }
-    }
-    Serial.println(timeElapsed);
-    if (!turnt)
-    {
-      sensMid = analogRead(MIDDLE_SENSOR);
-      sensRight = analogRead(RIGHT_SENSOR);
-      sensLeft = analogRead(LEFT_SENSOR);
-
-      if ((sensLeft < THRESHOLD_LEFT) && (sensMid < THRESHOLD_MIDDLE) && (sensRight < THRESHOLD_RIGHT))
-      {
-        Serial.println("U Turning around");
-        performUturn();
-      }
-    }
+    checkUturn();
   }
-  else if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE) && (sensRight > THRESHOLD_RIGHT))
+  else
   {
-    Serial.println("Finishing!!!!!!!!!!!!!");
-    Serial.println("Finishing!!!!!!!!!!!!!");
-    Serial.println("Finishing!!!!!!!!!!!!!");
-    Serial.println("Finishing!!!!!!!!!!!!!");
+    moveForward(); // This is the default
   }
-
-  analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
-  analogWrite(LEFT_MOTOR_BACKWARD, 0);
-  analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
-  analogWrite(RIGHT_MOTOR_BACKWARD, 0);
 }
