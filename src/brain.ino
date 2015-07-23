@@ -49,7 +49,6 @@
 
 unsigned char SHORTESTPATH[512];
 uint16_t PATH_ELEMENT = 0;
-bool checkedFinish = false;
 
 /*
 * This procedure checks if the EEPROM is empty or not
