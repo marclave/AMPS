@@ -1,32 +1,48 @@
+/*** MOSFET Motor PWM pins ***/
 #define LEFT_MOTOR_BACKWARD  3
 #define LEFT_MOTOR_FORWARD   5
 #define RIGHT_MOTOR_BACKWARD 6
 #define RIGHT_MOTOR_FORWARD 10
 
+/*** Sensor pins ***/
 #define RIGHT_SENSOR   0
 #define MIDDLE_SENSOR  1
 #define LEFT_SENSOR    2
 
+/*** Push Button pins ***/
 #define DELETE_EEPROM  12
 #define READY_TO_DRIVE 7
 
+/*** IR Thresholds ***/
+// Left low  42
+// right low  99
+// mid low  135
 #define THRESHOLD_LEFT   700
-#define THRESHOLD_MIDDLE 500
-#define THRESHOLD_RIGHT  700
+#define THRESHOLD_MIDDLE 600
+#define THRESHOLD_RIGHT  750
 
+#define UTURN_LEFT_THRESHOLD   200
+#define UTURN_MIDDLE_THRESHOLD 300
+#define UTURN_RIGHT_THRESHOLD   300
+
+/*** EEPROM Hexadecimal defines for direction ***/
 #define LEFT_DIRECTION  0x4c
 #define RIGHT_DIRECTION 0x52
 #define UP_DIRECTION    0x55
 #define U_TURN          0x54
 
+/*** Forward driving Motor Speed (PWM duty cycle) ***/
 #define LEFT_MOTOR_SPEED  145
 #define RIGHT_MOTOR_SPEED 140
 
+/*** Turning Motor Speed (PWM duty cycle) ***/
 #define LEFT_MOTOR_TURN_SPEED  255
 #define RIGHT_MOTOR_TURN_SPEED 250
+#define LEFT_MOTOR_UTURN_SPEED 240
 
-#define MAX_TIME_FOR_U_TURN          600
-#define CHECKING_TIME_FOR_FINISHLINE 400
+/*** Time Limits ***/
+#define U_TURN_TIME      500//600
+#define FINISH_LINE_TIME 200
 
 #include <EEPROM.h>
 #include <elapsedMillis.h>
@@ -132,6 +148,7 @@ void idle(void)
   Serial.println("Driving");
   delay(1000);
 
+  driving();
   /**
   // If the EEPROM is not empty, will use best path
   if (isEEPROMempty)
@@ -150,7 +167,7 @@ void setup() {
 }
 
 /*
-* This procedure propels the A.M.P.S machine in the backwards direction, then turns the 
+* This procedure propels the A.M.P.S machine in the backwards direction, then turns the
 * machine around once back on track
 */
 void performUturn(void)
@@ -189,6 +206,35 @@ void turnAround(void)
   delay(200);
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
+    analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_UTURN_SPEED);
+    analogWrite(LEFT_MOTOR_BACKWARD, 0);
+    analogWrite(RIGHT_MOTOR_FORWARD, 0);
+    analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
+
+    if (analogRead(RIGHT_SENSOR) > UTURN_RIGHT_THRESHOLD)
+    {
+      moveForward();
+      return;
+    }
+  }
+
+  //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
+  //PATH_ELEMENT++;
+}
+
+/*
+* This procedure corrects the A.M.P.S machine position in the right direction
+*/
+void correctPositionRight(void)
+{
+  Serial.println("Correcting RIGHT");
+  analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
+  analogWrite(LEFT_MOTOR_BACKWARD, 0);
+  analogWrite(RIGHT_MOTOR_FORWARD, 0);
+  analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
+
+  while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
+  {
     analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
     analogWrite(RIGHT_MOTOR_FORWARD, 0);
@@ -204,6 +250,8 @@ void turnAround(void)
 */
 void turnRight(void)
 {
+  moveForward();
+  delay(100); // 100
   Serial.println("TURNING RIGHT");
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
@@ -224,17 +272,39 @@ void turnRight(void)
 }
 
 /*
+* This procedure corrects the A.M.P.S machine position in the left direction
+*/
+void correctPositionLeft(void)
+{
+  Serial.println("TURNING LEFT");
+  analogWrite(LEFT_MOTOR_FORWARD, 0);
+  analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
+  analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
+  analogWrite(RIGHT_MOTOR_BACKWARD, 0);
+
+  while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
+  {
+    analogWrite(LEFT_MOTOR_FORWARD, 0);
+    analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
+    analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
+    analogWrite(RIGHT_MOTOR_BACKWARD, 0);
+  }
+}
+
+/*
 * This procedure turns the A.M.P.S machine in the left direction
 */
 void turnLeft(void)
 {
+  moveForward();
+  delay(100);
   Serial.println("TURNING LEFT");
   analogWrite(LEFT_MOTOR_FORWARD, 0);
   analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
   analogWrite(RIGHT_MOTOR_BACKWARD, 0);
 
-  delay(150); // Just for positioning with sensors in front
+  delay(175); // Just for positioning with sensors in front
 
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
@@ -250,7 +320,8 @@ void turnLeft(void)
 */
 void finished(void)
 {
-  while (1)
+  Serial.println("Finished");
+  while (true)
   {
     analogWrite(LEFT_MOTOR_FORWARD, 0);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
@@ -259,6 +330,7 @@ void finished(void)
 
     if (digitalRead(READY_TO_DRIVE))
     {
+      Serial.println("Going to idle");
       idle();
     }
   }
@@ -269,12 +341,13 @@ void finished(void)
 */
 void checkFinish(void)
 {
+  Serial.println("Checking Finish");
   uint16_t sensMid;
   uint16_t sensRight;
   uint16_t sensLeft;
 
   elapsedMillis timeElapsed;
-  while (timeElapsed < CHECKING_TIME_FOR_FINISHLINE)
+  while (timeElapsed < FINISH_LINE_TIME)
   {
   }
 
@@ -311,27 +384,31 @@ void checkUturn(void)
   Serial.println("Might turn around");
 
   elapsedMillis timeElapsed;
-  while (timeElapsed < MAX_TIME_FOR_U_TURN)
+  while (timeElapsed < U_TURN_TIME)
   {
     sensMid = analogRead(MIDDLE_SENSOR);
     sensRight = analogRead(RIGHT_SENSOR);
     sensLeft = analogRead(LEFT_SENSOR);
 
-    if (sensRight > THRESHOLD_RIGHT)
+    if (sensRight > UTURN_RIGHT_THRESHOLD)
     {
       Serial.println("Correcting position, turning right");
-      turnRight();
+      correctPositionRight();
       correctedPosition = true;
     }
-    else if (sensLeft > THRESHOLD_LEFT)
+    else if (sensLeft > UTURN_LEFT_THRESHOLD)
     {
       Serial.println("Correcting position, turning Left");
-      turnLeft();
+      correctPositionLeft();
+      correctedPosition = true;
+    }
+    else if (sensMid > UTURN_MIDDLE_THRESHOLD)
+    {
       correctedPosition = true;
     }
     if (correctedPosition)
     {
-      break;
+      return;
     }
   }
 
@@ -347,35 +424,51 @@ void checkUturn(void)
     }
   }
 }
+void driving(void)
+{
+  while (true)
+  {
+    uint16_t sensMid = analogRead(MIDDLE_SENSOR);
+    uint16_t sensRight = analogRead(RIGHT_SENSOR);
+    uint16_t sensLeft = analogRead(LEFT_SENSOR);
+
+    if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE) && (sensRight > THRESHOLD_RIGHT))
+    {
+      checkFinish();
+    }
+    else if ((sensRight > UTURN_RIGHT_THRESHOLD) && (sensRight < THRESHOLD_RIGHT))
+    {
+      Serial.println("Correcting position, turning right");
+      correctPositionRight();
+    }
+    else if ((sensLeft > UTURN_LEFT_THRESHOLD) && (sensLeft < THRESHOLD_LEFT))
+    {
+      Serial.println("Correcting position, turning Left");
+      correctPositionLeft();
+    }
+    else if (sensRight > THRESHOLD_RIGHT)
+    {
+      turnRight();
+    }
+    else if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE))
+    {
+      moveForward();
+    }
+    else if (sensLeft > THRESHOLD_LEFT)
+    {
+      turnLeft();
+    }
+    else if ((sensLeft < UTURN_LEFT_THRESHOLD) && (sensMid < UTURN_MIDDLE_THRESHOLD) && (sensRight < UTURN_RIGHT_THRESHOLD))
+    {
+      checkUturn();
+    }
+    else
+    {
+      moveForward(); // This is the default
+    }
+  }
+}
 
 void loop()
 {
-  uint16_t sensMid = analogRead(MIDDLE_SENSOR);
-  uint16_t sensRight = analogRead(RIGHT_SENSOR);
-  uint16_t sensLeft = analogRead(LEFT_SENSOR);
-
-  if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE) && (sensRight > THRESHOLD_RIGHT))
-  {
-    checkFinish();
-  }
-  else if (sensRight > THRESHOLD_RIGHT)
-  {
-    turnRight();
-  }
-  else if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE))
-  {
-    moveForward();
-  }
-  else if (sensLeft > THRESHOLD_LEFT)
-  {
-    turnLeft();
-  }
-  else if ((sensLeft < THRESHOLD_LEFT) && (sensMid < THRESHOLD_MIDDLE) && (sensRight < THRESHOLD_RIGHT))
-  {
-    checkUturn();
-  }
-  else
-  {
-    moveForward(); // This is the default
-  }
 }
