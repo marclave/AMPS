@@ -35,9 +35,13 @@
 #define LEFT_MOTOR_SPEED  145
 #define RIGHT_MOTOR_SPEED 140
 
+#define LEFT_MOTOR_CORRECTION_SPEED  105
+#define RIGHT_MOTOR_CORRECTION_SPEED 100
+
 /*** Turning Motor Speed (PWM duty cycle) ***/
 #define LEFT_MOTOR_TURN_SPEED  255
 #define RIGHT_MOTOR_TURN_SPEED 250
+
 #define LEFT_MOTOR_UTURN_SPEED 240
 
 /*** Time Limits ***/
@@ -229,15 +233,15 @@ void correctPositionRight(void)
   Serial.println("Correcting RIGHT");
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
-  analogWrite(RIGHT_MOTOR_FORWARD, 0);
-  analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
+  analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_CORRECTION_SPEED);
+  analogWrite(RIGHT_MOTOR_BACKWARD, 0);
 
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
     analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
-    analogWrite(RIGHT_MOTOR_FORWARD, 0);
-    analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
+    analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_CORRECTION_SPEED);
+    analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   }
 
   //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
@@ -276,15 +280,15 @@ void turnRight(void)
 void correctPositionLeft(void)
 {
   Serial.println("TURNING LEFT");
-  analogWrite(LEFT_MOTOR_FORWARD, 0);
-  analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
+  analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_CORRECTION_SPEED);
+  analogWrite(LEFT_MOTOR_BACKWARD, 0);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
   analogWrite(RIGHT_MOTOR_BACKWARD, 0);
 
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
-    analogWrite(LEFT_MOTOR_FORWARD, 0);
-    analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
+    analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_CORRECTION_SPEED);
+    analogWrite(LEFT_MOTOR_BACKWARD, 0);
     analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
     analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   }
