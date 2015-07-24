@@ -5,9 +5,12 @@
 #define RIGHT_MOTOR_FORWARD 10
 
 /*** Sensor pins ***/
-#define RIGHT_SENSOR   0
-#define MIDDLE_SENSOR  1
-#define LEFT_SENSOR    2
+#define RIGHT_SENSOR       0
+#define MIDDLE_SENSOR      1
+#define LEFT_SENSOR        2
+
+#define OUTER_LEFT_SENSOR  3
+#define OUTER_RIGHT_SENSOR 4
 
 /*** Push Button pins ***/
 #define DELETE_EEPROM  12
@@ -18,12 +21,12 @@
 // right low  99
 // mid low  135
 #define THRESHOLD_LEFT   700
-#define THRESHOLD_MIDDLE 600
+#define THRESHOLD_MIDDLE 500
 #define THRESHOLD_RIGHT  750
 
-#define UTURN_LEFT_THRESHOLD   200
-#define UTURN_MIDDLE_THRESHOLD 300
-#define UTURN_RIGHT_THRESHOLD   300
+#define CORRECTION_LEFT_THRESHOLD   300
+#define CORRECTION_MIDDLE_THRESHOLD 200
+#define CORRECTION_RIGHT_THRESHOLD  200
 
 /*** EEPROM Hexadecimal defines for direction ***/
 #define LEFT_DIRECTION  0x4c
@@ -35,8 +38,8 @@
 #define LEFT_MOTOR_SPEED  145
 #define RIGHT_MOTOR_SPEED 140
 
-#define LEFT_MOTOR_CORRECTION_SPEED  105
-#define RIGHT_MOTOR_CORRECTION_SPEED 100
+#define LEFT_MOTOR_CORRECTION_SPEED  125
+#define RIGHT_MOTOR_CORRECTION_SPEED 120
 
 /*** Turning Motor Speed (PWM duty cycle) ***/
 #define LEFT_MOTOR_TURN_SPEED  255
@@ -46,7 +49,7 @@
 
 /*** Time Limits ***/
 #define U_TURN_TIME      500//600
-#define FINISH_LINE_TIME 200
+#define FINISH_LINE_TIME 150
 
 #include <EEPROM.h>
 #include <elapsedMillis.h>
@@ -140,13 +143,19 @@ void idle(void)
     int sensMid = analogRead(MIDDLE_SENSOR);
     int sensRight = analogRead(RIGHT_SENSOR);
     int sensLeft = analogRead(LEFT_SENSOR);
+    int sensOuterLeft = analogRead(OUTER_LEFT_SENSOR);
+    int sensOuterRight = analogRead(OUTER_RIGHT_SENSOR);
 
+    Serial.print(sensOuterLeft);
+    Serial.print(" ");
     Serial.print(sensLeft);
     Serial.print(" ");
     Serial.print(sensMid);
     Serial.print(" ");
     Serial.print(sensRight);
-    Serial.println("");
+    Serial.print(" ");
+    Serial.print(sensOuterRight);
+    Serial.println(" ");
   }
   Serial.println("Driving");
   delay(1000);
@@ -214,9 +223,10 @@ void turnAround(void)
     analogWrite(RIGHT_MOTOR_FORWARD, 0);
     analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
 
-    if (analogRead(RIGHT_SENSOR) > UTURN_RIGHT_THRESHOLD)
+    if (analogRead(RIGHT_SENSOR) > CORRECTION_RIGHT_THRESHOLD)
     {
       moveForward();
+      delay(50);
       return;
     }
   }
@@ -233,15 +243,30 @@ void correctPositionRight(void)
   Serial.println("Correcting RIGHT");
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
-  analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_CORRECTION_SPEED);
-  analogWrite(RIGHT_MOTOR_BACKWARD, 0);
-
+  analogWrite(RIGHT_MOTOR_FORWARD, 0);
+  analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
+  
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
+    if (analogRead(OUTER_RIGHT_SENSOR) > THRESHOLD_RIGHT)
+    {
+     turnRight();
+     return;
+    }
+    else if ((analogRead(MIDDLE_SENSOR) > THRESHOLD_MIDDLE) && (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT))
+    {
+      moveForward();
+      return;
+    }
+    else if (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT)
+    {
+       turnLeft();
+       return; 
+    }
     analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
-    analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_CORRECTION_SPEED);
-    analogWrite(RIGHT_MOTOR_BACKWARD, 0);
+    analogWrite(RIGHT_MOTOR_FORWARD, 0);
+    analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
   }
 
   //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
@@ -254,7 +279,7 @@ void correctPositionRight(void)
 void turnRight(void)
 {
   moveForward();
-  delay(100); // 100
+  //delay(100); // 100
   Serial.println("TURNING RIGHT");
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
@@ -280,15 +305,30 @@ void turnRight(void)
 void correctPositionLeft(void)
 {
   Serial.println("TURNING LEFT");
-  analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_CORRECTION_SPEED);
-  analogWrite(LEFT_MOTOR_BACKWARD, 0);
+  analogWrite(LEFT_MOTOR_FORWARD, 0);
+  analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
   analogWrite(RIGHT_MOTOR_BACKWARD, 0);
 
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
-    analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_CORRECTION_SPEED);
-    analogWrite(LEFT_MOTOR_BACKWARD, 0);
+    if (analogRead(OUTER_RIGHT_SENSOR) > THRESHOLD_RIGHT)
+    {
+     turnRight();
+     return;
+    }
+    else if ((analogRead(MIDDLE_SENSOR) > THRESHOLD_MIDDLE) && (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT))
+    {
+      moveForward();
+      return;
+    }
+    else if (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT)
+    {
+       turnLeft();
+       return; 
+    }
+    analogWrite(LEFT_MOTOR_FORWARD, 0);
+    analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
     analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
     analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   }
@@ -300,14 +340,14 @@ void correctPositionLeft(void)
 void turnLeft(void)
 {
   moveForward();
-  delay(100);
+  //delay(100);
   Serial.println("TURNING LEFT");
   analogWrite(LEFT_MOTOR_FORWARD, 0);
   analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
   analogWrite(RIGHT_MOTOR_BACKWARD, 0);
 
-  delay(175); // Just for positioning with sensors in front
+  delay(125); // Just for positioning with sensors in front
 
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
@@ -392,20 +432,19 @@ void checkUturn(void)
     sensMid = analogRead(MIDDLE_SENSOR);
     sensRight = analogRead(RIGHT_SENSOR);
     sensLeft = analogRead(LEFT_SENSOR);
-
-    if (sensRight > UTURN_RIGHT_THRESHOLD)
+    if (sensRight > CORRECTION_RIGHT_THRESHOLD)
     {
       Serial.println("Correcting position, turning right");
       correctPositionRight();
       correctedPosition = true;
     }
-    else if (sensLeft > UTURN_LEFT_THRESHOLD)
+    else if (sensLeft > CORRECTION_LEFT_THRESHOLD)
     {
       Serial.println("Correcting position, turning Left");
       correctPositionLeft();
       correctedPosition = true;
     }
-    else if (sensMid > UTURN_MIDDLE_THRESHOLD)
+    else if (sensMid > CORRECTION_MIDDLE_THRESHOLD)
     {
       correctedPosition = true;
     }
@@ -434,36 +473,39 @@ void driving(void)
     uint16_t sensMid = analogRead(MIDDLE_SENSOR);
     uint16_t sensRight = analogRead(RIGHT_SENSOR);
     uint16_t sensLeft = analogRead(LEFT_SENSOR);
+    
+    uint16_t sensOuterRight = analogRead(OUTER_RIGHT_SENSOR);
+    uint16_t sensOuterLeft = analogRead(OUTER_LEFT_SENSOR);
 
     if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE) && (sensRight > THRESHOLD_RIGHT))
     {
       checkFinish();
     }
-    else if ((sensRight > UTURN_RIGHT_THRESHOLD) && (sensRight < THRESHOLD_RIGHT))
+    else if (sensOuterRight > THRESHOLD_RIGHT)
+    {
+      turnRight();
+    }
+    else if ((sensOuterLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE))
+    {
+      moveForward();
+    }
+    else if (sensOuterLeft > THRESHOLD_LEFT)
+    {
+      turnLeft();
+    }
+    else if ((sensLeft < CORRECTION_LEFT_THRESHOLD) && (sensMid < CORRECTION_MIDDLE_THRESHOLD) && (sensRight < CORRECTION_RIGHT_THRESHOLD))
+    {
+      checkUturn();
+    }
+    else if ((sensRight > CORRECTION_RIGHT_THRESHOLD) && (sensRight < THRESHOLD_RIGHT))
     {
       Serial.println("Correcting position, turning right");
       correctPositionRight();
     }
-    else if ((sensLeft > UTURN_LEFT_THRESHOLD) && (sensLeft < THRESHOLD_LEFT))
+    else if ((sensLeft > CORRECTION_LEFT_THRESHOLD) && (sensLeft < THRESHOLD_LEFT))
     {
       Serial.println("Correcting position, turning Left");
       correctPositionLeft();
-    }
-    else if (sensRight > THRESHOLD_RIGHT)
-    {
-      turnRight();
-    }
-    else if ((sensLeft > THRESHOLD_LEFT) && (sensMid > THRESHOLD_MIDDLE))
-    {
-      moveForward();
-    }
-    else if (sensLeft > THRESHOLD_LEFT)
-    {
-      turnLeft();
-    }
-    else if ((sensLeft < UTURN_LEFT_THRESHOLD) && (sensMid < UTURN_MIDDLE_THRESHOLD) && (sensRight < UTURN_RIGHT_THRESHOLD))
-    {
-      checkUturn();
     }
     else
     {
