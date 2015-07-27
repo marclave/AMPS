@@ -17,9 +17,6 @@
 #define READY_TO_DRIVE 7
 
 /*** IR Thresholds ***/
-// Left low  42
-// right low  99
-// mid low  135
 #define THRESHOLD_LEFT   700
 #define THRESHOLD_MIDDLE 500
 #define THRESHOLD_RIGHT  750
@@ -121,30 +118,17 @@ void writeShortestPath(void)
   Serial.println("Shortest path written to EEPROM!");
 }
 
-void idle(void)
+void calibration(void)
 {
-  // Waiting for ready to drive button to be pushed
-  while (!digitalRead(READY_TO_DRIVE))
-  {
-    /**
-    if (digitalRead(DELETE_EEPROM))
-    {
-      clearEEPROM();
-    }
-    **/
-  }
-  Serial.print("Ready To Drive Enabled");
-  delay(1000);
-
   // Now we wait for the next push to enable movement
   // This is important for manual calibration
   while (!digitalRead(READY_TO_DRIVE))
   {
-    int sensMid = analogRead(MIDDLE_SENSOR);
-    int sensRight = analogRead(RIGHT_SENSOR);
-    int sensLeft = analogRead(LEFT_SENSOR);
-    int sensOuterLeft = analogRead(OUTER_LEFT_SENSOR);
-    int sensOuterRight = analogRead(OUTER_RIGHT_SENSOR);
+    uint16_t sensMid = analogRead(MIDDLE_SENSOR);
+    uint16_t sensRight = analogRead(RIGHT_SENSOR);
+    uint16_t sensLeft = analogRead(LEFT_SENSOR);
+    uint16_t sensOuterLeft = analogRead(OUTER_LEFT_SENSOR);
+    uint16_t sensOuterRight = analogRead(OUTER_RIGHT_SENSOR);
 
     Serial.print(sensOuterLeft);
     Serial.print(" ");
@@ -157,6 +141,26 @@ void idle(void)
     Serial.print(sensOuterRight);
     Serial.println(" ");
   }
+}
+
+void idle(void)
+{
+  // Waiting for ready to drive button to be pushed
+  while (!digitalRead(READY_TO_DRIVE))
+  {
+    /**
+    if (digitalRead(DELETE_EEPROM))
+    {
+      clearEEPROM();
+    }
+    **/
+  }
+  Serial.println("Ready To Drive Enabled");
+  delay(1000);
+  Serial.println("Calibration");
+
+  calibration();
+
   Serial.println("Driving");
   delay(1000);
 
@@ -182,7 +186,7 @@ void setup() {
 * This procedure propels the A.M.P.S machine in the backwards direction, then turns the
 * machine around once back on track
 */
-void performUturn(void)
+void reverse(void)
 {
   analogWrite(LEFT_MOTOR_FORWARD, 0);
   analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
@@ -245,13 +249,13 @@ void correctPositionRight(void)
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
   analogWrite(RIGHT_MOTOR_FORWARD, 0);
   analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_SPEED);
-  
+
   while (analogRead(MIDDLE_SENSOR) < THRESHOLD_MIDDLE)
   {
     if (analogRead(OUTER_RIGHT_SENSOR) > THRESHOLD_RIGHT)
     {
-     turnRight();
-     return;
+      turnRight();
+      return;
     }
     else if ((analogRead(MIDDLE_SENSOR) > THRESHOLD_MIDDLE) && (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT))
     {
@@ -260,8 +264,8 @@ void correctPositionRight(void)
     }
     else if (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT)
     {
-       turnLeft();
-       return; 
+      turnLeft();
+      return;
     }
     analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
     analogWrite(LEFT_MOTOR_BACKWARD, 0);
@@ -314,8 +318,8 @@ void correctPositionLeft(void)
   {
     if (analogRead(OUTER_RIGHT_SENSOR) > THRESHOLD_RIGHT)
     {
-     turnRight();
-     return;
+      turnRight();
+      return;
     }
     else if ((analogRead(MIDDLE_SENSOR) > THRESHOLD_MIDDLE) && (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT))
     {
@@ -324,8 +328,8 @@ void correctPositionLeft(void)
     }
     else if (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT)
     {
-       turnLeft();
-       return; 
+      turnLeft();
+      return;
     }
     analogWrite(LEFT_MOTOR_FORWARD, 0);
     analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
@@ -462,7 +466,7 @@ void checkUturn(void)
 
     if ((sensLeft < THRESHOLD_LEFT) && (sensMid < THRESHOLD_MIDDLE) && (sensRight < THRESHOLD_RIGHT))
     {
-      performUturn();
+      reverse();
     }
   }
 }
@@ -473,7 +477,7 @@ void driving(void)
     uint16_t sensMid = analogRead(MIDDLE_SENSOR);
     uint16_t sensRight = analogRead(RIGHT_SENSOR);
     uint16_t sensLeft = analogRead(LEFT_SENSOR);
-    
+
     uint16_t sensOuterRight = analogRead(OUTER_RIGHT_SENSOR);
     uint16_t sensOuterLeft = analogRead(OUTER_LEFT_SENSOR);
 
