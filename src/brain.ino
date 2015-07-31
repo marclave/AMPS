@@ -16,6 +16,9 @@
 #define DELETE_EEPROM  12
 #define READY_TO_DRIVE 7
 
+/*** Arduino Timer signal ***/
+#define PERIPHERAL_ARDUINO_SIGNAL 8
+
 /*** IR Thresholds ***/
 #define THRESHOLD_LEFT   700
 #define THRESHOLD_MIDDLE 500
@@ -28,8 +31,9 @@
 /*** EEPROM Hexadecimal defines for direction ***/
 #define LEFT_DIRECTION  0x4c
 #define RIGHT_DIRECTION 0x52
-#define UP_DIRECTION    0x55
+#define STRAIGHT        0x53
 #define U_TURN          0x54
+#define FINISH          0x46
 
 /*** Forward driving Motor Speed (PWM duty cycle) ***/
 #define LEFT_MOTOR_SPEED  145
@@ -42,10 +46,10 @@
 #define LEFT_MOTOR_TURN_SPEED  255
 #define RIGHT_MOTOR_TURN_SPEED 250
 
-#define LEFT_MOTOR_UTURN_SPEED 240
+#define LEFT_MOTOR_UTURN_SPEED 170
 
 /*** Time Limits ***/
-#define U_TURN_TIME      500//600
+#define U_TURN_TIME      370
 #define FINISH_LINE_TIME 150
 
 #include <EEPROM.h>
@@ -67,7 +71,7 @@ bool isEEPROMempty(void)
   for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
   {
     eepromValue = EEPROM.read(eepromAddress);
-    if (((eepromValue & LEFT_DIRECTION) != 0x00) || ((eepromValue & RIGHT_DIRECTION) != 0x00) || ((eepromValue & UP_DIRECTION) != 0x00) || ((eepromValue & U_TURN) != 0x00))
+    if (((eepromValue & LEFT_DIRECTION) != 0x00) || ((eepromValue & RIGHT_DIRECTION) != 0x00) || ((eepromValue & STRAIGHT) != 0x00) || ((eepromValue & U_TURN) != 0x00))
     {
       Serial.println("EEPROM is empty");
       return true; // This means EEPROM is empty
@@ -118,6 +122,15 @@ void writeShortestPath(void)
   Serial.println("Shortest path written to EEPROM!");
 }
 
+void debugShortestPath(void)
+{
+  for (uint16_t eepromAddress = 0; eepromAddress < 512; eepromAddress++)
+  {
+    Serial.println(SHORTESTPATH[eepromAddress], HEX);
+  }
+  Serial.println("Shortest path read!");
+}
+
 void calibration(void)
 {
   // Now we wait for the next push to enable movement
@@ -145,6 +158,7 @@ void calibration(void)
 
 void idle(void)
 {
+  digitalWrite(PERIPHERAL_ARDUINO_SIGNAL, HIGH);
   // Waiting for ready to drive button to be pushed
   while (!digitalRead(READY_TO_DRIVE))
   {
@@ -165,6 +179,7 @@ void idle(void)
   delay(1000);
 
   driving();
+  
   /**
   // If the EEPROM is not empty, will use best path
   if (isEEPROMempty)
@@ -178,7 +193,7 @@ void setup() {
   Serial.begin(9600);
   delay(3000);
   pinMode(READY_TO_DRIVE, INPUT);
-
+  pinMode(PERIPHERAL_ARDUINO_SIGNAL, OUTPUT);
   idle();
 }
 
@@ -196,11 +211,11 @@ void reverse(void)
 
   while (true)
   {
-    int sensMid = analogRead(MIDDLE_SENSOR);
-    int sensRight = analogRead(RIGHT_SENSOR);
-    int sensLeft = analogRead(LEFT_SENSOR);
+    uint16_t sensMid = analogRead(MIDDLE_SENSOR);
+    uint16_t sensRight = analogRead(RIGHT_SENSOR);
+    uint16_t sensLeft = analogRead(LEFT_SENSOR);
 
-    if (sensMid > THRESHOLD_MIDDLE)
+    if ((sensMid > THRESHOLD_MIDDLE) || (sensLeft > CORRECTION_LEFT_THRESHOLD) || (sensRight > THRESHOLD_RIGHT))
     {
       turnAround();
       return;
@@ -214,7 +229,7 @@ void reverse(void)
 void turnAround(void)
 {
   Serial.println("TURNING AROUND");
-  analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
+  analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
   analogWrite(RIGHT_MOTOR_FORWARD, 0);
   analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
@@ -235,8 +250,8 @@ void turnAround(void)
     }
   }
 
-  //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
-  //PATH_ELEMENT++;
+  SHORTESTPATH[PATH_ELEMENT] = U_TURN;
+  PATH_ELEMENT++;
 }
 
 /*
@@ -272,9 +287,6 @@ void correctPositionRight(void)
     analogWrite(RIGHT_MOTOR_FORWARD, 0);
     analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
   }
-
-  //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
-  //PATH_ELEMENT++;
 }
 
 /*
@@ -282,8 +294,6 @@ void correctPositionRight(void)
 */
 void turnRight(void)
 {
-  moveForward();
-  //delay(100); // 100
   Serial.println("TURNING RIGHT");
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_TURN_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
@@ -299,8 +309,8 @@ void turnRight(void)
     analogWrite(RIGHT_MOTOR_BACKWARD, RIGHT_MOTOR_TURN_SPEED);
   }
 
-  //SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
-  //PATH_ELEMENT++;
+  SHORTESTPATH[PATH_ELEMENT] = RIGHT_DIRECTION;
+  PATH_ELEMENT++;
 }
 
 /*
@@ -308,7 +318,7 @@ void turnRight(void)
 */
 void correctPositionLeft(void)
 {
-  Serial.println("TURNING LEFT");
+  Serial.println("correcting LEFT");
   analogWrite(LEFT_MOTOR_FORWARD, 0);
   analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_SPEED);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
@@ -343,8 +353,6 @@ void correctPositionLeft(void)
 */
 void turnLeft(void)
 {
-  moveForward();
-  //delay(100);
   Serial.println("TURNING LEFT");
   analogWrite(LEFT_MOTOR_FORWARD, 0);
   analogWrite(LEFT_MOTOR_BACKWARD, LEFT_MOTOR_TURN_SPEED);
@@ -360,6 +368,8 @@ void turnLeft(void)
     analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_TURN_SPEED);
     analogWrite(RIGHT_MOTOR_BACKWARD, 0);
   }
+  SHORTESTPATH[PATH_ELEMENT] = LEFT_DIRECTION;
+  PATH_ELEMENT++;
 }
 
 /*
@@ -367,7 +377,10 @@ void turnLeft(void)
 */
 void finished(void)
 {
+  SHORTESTPATH[PATH_ELEMENT] = FINISH;
+  PATH_ELEMENT++;
   Serial.println("Finished");
+  digitalWrite(PERIPHERAL_ARDUINO_SIGNAL, HIGH); // Starts the seperate arduino/LCD display to start timing
   while (true)
   {
     analogWrite(LEFT_MOTOR_FORWARD, 0);
@@ -377,6 +390,8 @@ void finished(void)
 
     if (digitalRead(READY_TO_DRIVE))
     {
+      //debugShortestPath();
+      //delay(3000);
       Serial.println("Going to idle");
       idle();
     }
@@ -412,6 +427,11 @@ void checkFinish(void)
 */
 void moveForward(void)
 {
+  if (analogRead(OUTER_LEFT_SENSOR) > THRESHOLD_LEFT)
+  {
+    SHORTESTPATH[PATH_ELEMENT] = STRAIGHT;
+    PATH_ELEMENT++;
+  }
   analogWrite(LEFT_MOTOR_FORWARD, LEFT_MOTOR_SPEED);
   analogWrite(LEFT_MOTOR_BACKWARD, 0);
   analogWrite(RIGHT_MOTOR_FORWARD, RIGHT_MOTOR_SPEED);
@@ -470,8 +490,10 @@ void checkUturn(void)
     }
   }
 }
+
 void driving(void)
 {
+  digitalWrite(PERIPHERAL_ARDUINO_SIGNAL, LOW); // Starts the seperate arduino/LCD display to start timing
   while (true)
   {
     uint16_t sensMid = analogRead(MIDDLE_SENSOR);
